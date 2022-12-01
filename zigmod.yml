@@ -1,0 +1,5 @@
+id: ipcqsvkbh2muh8ndb46un21xzqvhml1s6inyepeyt61x4umy
+name: aoc2022
+license: AGPL-3.0
+description: advent of code 2022 in Zig
+root_dependencies:
