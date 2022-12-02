@@ -1,7 +1,5 @@
 const std = @import("std");
 
-const data = @embedFile("input.txt");
-
 fn Priority(comptime T: type, comptime N: usize) type {
     return struct {
         data: [N]T,
@@ -43,11 +41,15 @@ fn Priority(comptime T: type, comptime N: usize) type {
 
 pub fn main() !void {
     std.debug.print("AoC 2022 Day 1!!!\n", .{});
-
     var gp = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gp.deinit();
     const allocator = gp.allocator();
-    _ = allocator;
+
+    const data_file = try std.fs.cwd().openFile("src/input.txt", .{});
+    defer data_file.close();
+
+    const data = try data_file.readToEndAlloc(allocator, std.math.maxInt(usize));
+    defer allocator.free(data);
 
     var max = Priority(usize, 3).init();
     var elf_iter = std.mem.split(u8, data, "\n\n");
