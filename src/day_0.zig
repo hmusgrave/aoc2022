@@ -1,4 +1,5 @@
 const std = @import("std");
+const utils = @import("./utils.zig");
 
 fn Priority(comptime T: type, comptime N: usize) type {
     return struct {
@@ -39,19 +40,8 @@ fn Priority(comptime T: type, comptime N: usize) type {
     };
 }
 
-pub fn main() !void {
-    std.debug.print("AoC 2022 Day 1!!!\n", .{});
-    var gp = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gp.deinit();
-    const allocator = gp.allocator();
-
-    const data_file = try std.fs.cwd().openFile("src/input.txt", .{});
-    defer data_file.close();
-
-    const data = try data_file.readToEndAlloc(allocator, std.math.maxInt(usize));
-    defer allocator.free(data);
-
-    var max = Priority(usize, 3).init();
+fn solve(data: []u8, comptime count: usize) !usize {
+    var max = Priority(usize, count).init();
     var elf_iter = std.mem.split(u8, data, "\n\n");
     var i: usize = 0;
     while (elf_iter.next()) |x| : (i += 1) {
@@ -62,5 +52,16 @@ pub fn main() !void {
         }
         max.update(total);
     }
-    std.debug.print("max: {any}\n", .{max.all()});
+    return max.all();
+}
+
+pub fn main() !void {
+    var gp = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gp.deinit();
+    const allocator = gp.allocator();
+
+    const data = try utils.data(allocator);
+    defer allocator.free(data);
+
+    std.debug.print("{}\n{}\n", .{ try solve(data, 1), try solve(data, 3) });
 }
