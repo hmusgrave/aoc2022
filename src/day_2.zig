@@ -7,19 +7,25 @@ inline fn priority(item: anytype) @TypeOf(item) {
     return 1 +% item -% 'a';
 }
 
-fn common(left: anytype, right: anytype) @TypeOf(left[0], right[0]) {
-    // puzzle input is small enough we can O(n^2) this and
-    // have it be probably faster than hashing, probably slower
-    // than bitmaps given the small, finite input
-    if (@max(left.len, right.len) > 100)
-        unreachable;
-    for (left) |x| {
-        for (right) |y| {
-            if (x == y)
-                return x;
-        }
+inline fn bitset(item: anytype) usize {
+    return @as(usize, 1) << @intCast(u6, (item - 'A'));
+}
+
+inline fn multi_bitset(items: anytype) usize {
+    var total: usize = 0;
+    for (items) |x|
+        total |= bitset(x);
+    return total;
+}
+
+inline fn common(groups: anytype) usize {
+    if (groups.len == 0)
+        @compileError("Undefined");
+    var total: usize = std.math.maxInt(usize);
+    inline for (groups) |g| {
+        total &= multi_bitset(g);
     }
-    unreachable;
+    return @ctz(total) + 'A';
 }
 
 fn solve0(data: []u8) usize {
@@ -29,7 +35,26 @@ fn solve0(data: []u8) usize {
         if (line.len == 0)
             continue;
         const m = line.len / 2;
-        total += priority(common(line[0..m], line[m..]));
+        total += priority(common(.{ line[0..m], line[m..] }));
+    }
+    return total;
+}
+
+fn solve1(data: []u8) usize {
+    var lines = std.mem.split(u8, data, "\n");
+    var total: usize = 0;
+    var group: usize = 0;
+    var running: usize = std.math.maxInt(usize);
+    while (lines.next()) |line| {
+        if (line.len == 0)
+            continue;
+        running &= multi_bitset(line);
+        group += 1;
+        if (group == 3) {
+            total += priority(@ctz(running) + 'A');
+            group = 0;
+            running = std.math.maxInt(usize);
+        }
     }
     return total;
 }
@@ -42,5 +67,5 @@ pub fn main() !void {
     const data = try utils.data(allocator);
     defer allocator.free(data);
 
-    std.debug.print("{}\n{}\n", .{ solve0(data), solve0(data) });
+    std.debug.print("{}\n{}\n", .{ solve0(data), solve1(data) });
 }
