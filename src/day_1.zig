@@ -1,43 +1,76 @@
 const std = @import("std");
 const utils = @import("./utils.zig");
 
-fn solve0(data: []u8) usize {
-    var pairs = std.mem.split(u8, data, "\n");
-    var total: usize = 0;
-    while (pairs.next()) |pair| {
-        if (pair.len < 3)
-            continue;
-        var them = pair[0] - 'A';
-        var us = pair[2] - 'X';
-        total += (us + 1) + switch (@mod((us + 3) -% them, 3)) {
-            0 => @as(usize, 3),
-            1 => @as(usize, 6),
-            2 => @as(usize, 0),
+const Guess = enum(usize) {
+    rock,
+    paper,
+    scissors,
+};
+
+const Win = enum(usize) {
+    tie,
+    win,
+    lose,
+};
+
+const Game = struct {
+    guess: Guess,
+    win: Win,
+
+    pub fn parse0(line: []const u8) !@This() {
+        if (line.len != 3)
+            return error.Invalid;
+
+        const them = line[0] - 'A';
+        const us = line[2] - 'X';
+        return @This(){
+            .guess = @intToEnum(Guess, us),
+            .win = @intToEnum(Win, @mod((us + 3) -% them, 3)),
+        };
+    }
+
+    pub fn parse1(line: []const u8) !@This() {
+        if (line.len != 3)
+            return error.Invalid;
+
+        const them = line[0] - 'A';
+        const win = @intToEnum(Win, @mod((line[2] - 'X') + 3 - 1, 3));
+        const us = @intToEnum(Guess, switch (win) {
+            .tie => them,
+            .win => @mod(them + 1, 3),
+            .lose => @mod(them + 3 - 1, 3),
+        });
+        return @This(){
+            .guess = us,
+            .win = win,
+        };
+    }
+
+    pub fn parse(line: []const u8, comptime day: usize) !@This() {
+        return switch (day) {
+            0 => parse0(line),
+            1 => parse1(line),
             else => unreachable,
         };
     }
-    return total;
-}
 
-fn solve1(data: []u8) usize {
+    fn score(self: @This()) usize {
+        return @enumToInt(self.guess) + 1 + switch (self.win) {
+            .tie => @as(usize, 3),
+            .win => @as(usize, 6),
+            .lose => @as(usize, 0),
+        };
+    }
+};
+
+fn solve(data: []u8, comptime day: usize) usize {
     var pairs = std.mem.split(u8, data, "\n");
     var total: usize = 0;
     while (pairs.next()) |pair| {
         if (pair.len < 3)
             continue;
-        var them = pair[0] - 'A';
-        var us = pair[2] - 'X';
-        total += switch (us) {
-            0 => @as(usize, 0),
-            1 => @as(usize, 3),
-            2 => @as(usize, 6),
-            else => unreachable,
-        } + 1 + switch (us) {
-            0 => @mod(them + 3 -% 1, 3),
-            1 => them,
-            2 => @mod(them + 3 -% 2, 3),
-            else => unreachable,
-        };
+        const game = Game.parse(pair, day) catch unreachable;
+        total += game.score();
     }
     return total;
 }
@@ -50,5 +83,5 @@ pub fn main() !void {
     const data = try utils.data(allocator);
     defer allocator.free(data);
 
-    std.debug.print("{}\n{}\n", .{ solve0(data), solve1(data) });
+    std.debug.print("{}\n{}\n", .{ solve(data, 0), solve(data, 1) });
 }
