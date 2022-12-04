@@ -27,6 +27,80 @@ const Assignment = struct {
     }
 };
 
+fn FilterT(comptime IterT: type, comptime predicate: anytype) type {
+    return struct {
+        state: IterT,
+
+        pub fn next(self: *@This()) @typeInfo(@TypeOf(IterT.next)).Fn.return_type.? {
+            while (true) {
+                const val = self.state.next() orelse {
+                    return null;
+                };
+                if (predicate(val))
+                    return val;
+            }
+        }
+    };
+}
+
+pub fn filter(iter: anytype, comptime predicate: anytype) FilterT(@TypeOf(iter), predicate) {
+    return .{ .state = iter };
+}
+
+fn nonempty(line: anytype) bool {
+    return line.len != 0;
+}
+
+fn MapT(comptime IterT: type, comptime f: anytype) type {
+    const OutOptT = @typeInfo(@TypeOf(IterT.next)).Fn.return_type.?;
+    const OutT = @typeInfo(OutOptT).Optional.child;
+    const T = @TypeOf(f(@as(OutT, undefined)));
+    return struct {
+        state: IterT,
+
+        pub fn next(self: *@This()) CoalesceT(?T) {
+            return f(self.state.next() orelse {
+                return null;
+            });
+        }
+    };
+}
+
+pub fn map(iter: anytype, comptime f: anytype) MapT(@TypeOf(iter), f) {
+    return .{ .state = iter };
+}
+
+pub fn reduce(_iter: anytype, comptime combine: anytype, init: anytype) @TypeOf(init) {
+    var iter = _iter;
+    var total = init;
+    while (iter.next()) |x|
+        total = combine(total, x);
+    return total;
+}
+
+fn NullifyT(comptime EU: type) type {
+    return switch (@typeInfo(EU)) {
+        .ErrorUnion => |eu| ?eu.payload,
+        .ErrorSet => @TypeOf(null),
+        else => unreachable,
+    };
+}
+
+fn RootT(comptime T: type) type {
+    return switch (@typeInfo(T)) {
+        .Optional => |opt| RootT(opt.child),
+        else => T,
+    };
+}
+
+fn CoalesceT(comptime T: type) type {
+    return ?RootT(T);
+}
+
+fn nullify(x: anytype) NullifyT(@TypeOf(x)) {
+    return x catch null;
+}
+
 const AssignmentPair = struct {
     elves: [2]Assignment,
 
@@ -54,30 +128,24 @@ const AssignmentPair = struct {
     }
 };
 
-fn solve0(data: []u8) !usize {
-    var lines = std.mem.split(u8, data, "\n");
-    var total: usize = 0;
-    while (lines.next()) |line| {
-        if (line.len == 0)
-            continue;
-        var pair = try AssignmentPair.parse(line);
-        if (pair.contains())
-            total += 1;
-    }
-    return total;
+fn add(a: anytype, b: anytype) @TypeOf(a, b) {
+    return a + b;
 }
 
-fn solve1(data: []u8) !usize {
-    var lines = std.mem.split(u8, data, "\n");
-    var total: usize = 0;
-    while (lines.next()) |line| {
-        if (line.len == 0)
-            continue;
-        var pair = try AssignmentPair.parse(line);
-        if (pair.overlaps())
-            total += 1;
-    }
-    return total;
+fn Const(C: anytype) fn (anytype) @TypeOf(C) {
+    return struct {
+        pub fn _f(_: anytype) @TypeOf(C) {
+            return C;
+        }
+    }._f;
+}
+
+fn solve(data: []u8, comptime day: usize) !usize {
+    var lines = filter(std.mem.split(u8, data, "\n"), nonempty);
+    var pairs = map(map(lines, AssignmentPair.parse), nullify);
+    const predicate = if (day == 0) AssignmentPair.contains else AssignmentPair.overlaps;
+    var increments = map(filter(pairs, predicate), Const(@as(usize, 1)));
+    return reduce(increments, add, @as(usize, 0));
 }
 
 pub fn main() !void {
@@ -88,5 +156,5 @@ pub fn main() !void {
     const data = try utils.data(allocator);
     defer allocator.free(data);
 
-    std.debug.print("{}\n{}\n", .{ try solve0(data), try solve1(data) });
+    std.debug.print("{}\n{}\n", .{ try solve(data, 0), try solve(data, 1) });
 }
